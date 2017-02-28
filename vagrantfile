@@ -1,0 +1,43 @@
+Vagrant.configure("2") do |config|
+  config.vm.provision "shell", inline: "echo Hello"
+
+  config.vm.define "rancher_server" do |rancher_server|
+  #the rancher server requires 1gb of ram the default in vagrant is 512mb so we need to allocate some more
+  rancher_server.vm.provider "virtualbox" do |v|
+    v.memory = 1024
+  end
+
+	rancher_server.vm.box = "ubuntu/trusty64"
+	rancher_server.vm.network "private_network", ip: "192.168.50.2"
+
+	#update
+	rancher_server.vm.provision "shell", inline: "sudo apt-get update"
+
+	#install docker
+	rancher_server.vm.provision "shell", inline: "curl -sSL https://get.docker.com/ | sh"
+	rancher_server.vm.provision "shell", inline: "sudo usermod -aG docker vagrant"
+
+  #install rancher server
+  rancher_server.vm.provision "shell", inline: "sudo docker run -d -v /vagrant/persistent_storage/rancher_server:/var/lib/mysql -p 8080:8080 rancher/server"
+  end
+
+  config.vm.define "rancher_host_1" do |rancher_host_1|
+	rancher_host_1.vm.box = "ubuntu/trusty64"
+	rancher_host_1.vm.network "private_network", ip: "192.168.50.3"
+
+  #mount shared files for docker state
+  rancher_host_1.vm.provision "shell", inline: "sudo mkdir /var/lib/rancher"
+  rancher_host_1.vm.provision "shell", inline: "sudo mount --bind /vagrant/persistent_storage/rancher_host_1/rancher-agent /var/lib/rancher"
+
+	#update
+	rancher_host_1.vm.provision "shell", inline: "sudo apt-get update"
+
+	#install docker
+	rancher_host_1.vm.provision "shell", inline: "curl -sSL https://get.docker.com/ | sh"
+	rancher_host_1.vm.provision "shell", inline: "sudo usermod -aG docker vagrant"
+
+
+  rancher_host_1.vm.provision "shell", inline: "docker run -d --privileged -v /var/run/docker.sock:/var/run/docker.sock rancher/agent:v0.8.2 http://192.168.50.2:8080"
+
+  end
+end
